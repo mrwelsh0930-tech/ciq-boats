@@ -38,10 +38,9 @@ export function calculateApproachAngle(
 }
 
 export function classifyCollision(approachAngle: number): string {
-  if (approachAngle <= 30) return "Rear-End";
-  if (approachAngle >= 150) return "Head-On";
-  if (approachAngle >= 60 && approachAngle <= 120) return "T-Bone";
-  return "Sideswipe";
+  if (approachAngle <= 30) return "Overtaken";
+  if (approachAngle >= 60 && approachAngle <= 120) return "Boat Crossing";
+  return "Overtaken";
 }
 
 export function toPDOFClock(approachAngle: number): number {

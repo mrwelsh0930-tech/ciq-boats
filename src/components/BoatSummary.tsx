@@ -127,6 +127,18 @@ export function BoatSummary({ state, onStartOver, onCollisionTypeOverride }: Boa
           <p className="font-medium text-[14px] text-[#475569]">{otherLabel}</p>
         </div>
 
+        {/* Approximate collision coordinates */}
+        {state.impactPoint && (
+          <div className="bg-[#F1F5F9] rounded-[8px] p-4">
+            <p className="text-[12px] text-[#94A3B8] uppercase tracking-wide mb-1">
+              Approximate collision location
+            </p>
+            <p className="font-medium text-[14px] text-[#475569]">
+              {state.impactPoint.lat.toFixed(4)}, {state.impactPoint.lng.toFixed(4)}
+            </p>
+          </div>
+        )}
+
         {/* Collision type (boat-to-boat only) */}
         {isBoat && (
           <div className="bg-[#F1F5F9] rounded-[8px] p-4">
@@ -171,7 +183,13 @@ export function BoatSummary({ state, onStartOver, onCollisionTypeOverride }: Boa
               </div>
             ) : (
               <div className="space-y-1.5">
-                {BOAT_COLLISION_TYPE_OPTIONS.map((opt) => (
+                {BOAT_COLLISION_TYPE_OPTIONS
+                  .filter((opt) => {
+                    // "Anchored/Moored Boat Struck" only shows if vessel was stopped
+                    if (opt === "Anchored/Moored Boat Struck" && state.yourBoat.movementType !== "stopped") return false;
+                    return true;
+                  })
+                  .map((opt) => (
                   <button
                     key={opt}
                     onClick={() => handleTypeSelect(opt)}
@@ -234,16 +252,10 @@ export function BoatSummary({ state, onStartOver, onCollisionTypeOverride }: Boa
               </div>
             )}
             {!isSwimmer && (
-              <>
-                <div className="flex justify-between">
-                  <span className="text-[#94A3B8]">Path</span>
-                  <span className="font-medium text-[#1660F4]">Recorded</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-[#94A3B8]">Rest position</span>
-                  <span className="font-medium text-[#1660F4]">Recorded</span>
-                </div>
-              </>
+              <div className="flex justify-between">
+                <span className="text-[#94A3B8]">Path</span>
+                <span className="font-medium text-[#1660F4]">Recorded</span>
+              </div>
             )}
           </div>
         </div>
@@ -300,8 +312,8 @@ export function BoatSummary({ state, onStartOver, onCollisionTypeOverride }: Boa
                   {state.yourBoat.approachBearing !== null && (
                     <p>Bearing: {state.yourBoat.approachBearing.toFixed(1)}&deg;</p>
                   )}
-                  {state.yourBoat.restPosition && (
-                    <p>Rest: {state.yourBoat.restPosition.lat.toFixed(6)}, {state.yourBoat.restPosition.lng.toFixed(6)}</p>
+                  {state.yourBoat.rotation !== 0 && (
+                    <p>Rotation: {state.yourBoat.rotation.toFixed(1)}&deg;</p>
                   )}
                 </div>
               </div>

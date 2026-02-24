@@ -12,6 +12,7 @@ interface AddressInputProps {
   subtitle?: string;
   helpText?: string;
   placeholder?: string;
+  locationBias?: { state: string; city: string } | null;
 }
 
 export function AddressInput({
@@ -20,8 +21,10 @@ export function AddressInput({
   subtitle = "Enter the address or name of the marina, dock, pier, port, or nearby landmark where you embarked.",
   helpText,
   placeholder = "e.g. Marina Bay, Pier 39, or 123 Harbor Rd",
+  locationBias = null,
 }: AddressInputProps) {
   const [query, setQuery] = useState("");
+  const [showFreeForm, setShowFreeForm] = useState(false);
   const [predictions, setPredictions] = useState<google.maps.places.AutocompletePrediction[]>([]);
   const autocompleteServiceRef = useRef<google.maps.places.AutocompleteService | null>(null);
   const placesServiceRef = useRef<google.maps.places.PlacesService | null>(null);
@@ -41,24 +44,53 @@ export function AddressInput({
     }
   }, [isLoaded]);
 
+  // Geocode city+state for location bias
+  const [biasLocation, setBiasLocation] = useState<google.maps.LatLng | null>(null);
+  useEffect(() => {
+    if (!isLoaded || !locationBias) return;
+    const geocoder = new google.maps.Geocoder();
+    geocoder.geocode(
+      { address: `${locationBias.city}, ${locationBias.state}, USA` },
+      (results, status) => {
+        if (status === "OK" && results && results[0]?.geometry?.location) {
+          setBiasLocation(results[0].geometry.location);
+        }
+      }
+    );
+  }, [isLoaded, locationBias]);
+
   const handleSearch = useCallback(
     (input: string) => {
       setQuery(input);
+      setShowFreeForm(false);
       if (!autocompleteServiceRef.current || input.length < 3) {
         setPredictions([]);
         return;
       }
+
+      const request: google.maps.places.AutocompletionRequest = {
+        input,
+        types: ["geocode", "establishment"],
+        componentRestrictions: { country: "us" },
+      };
+      // Bias results toward city/state if available
+      if (biasLocation) {
+        request.locationBias = new google.maps.Circle({
+          center: biasLocation,
+          radius: 80000, // ~50 miles
+        });
+      }
+
       autocompleteServiceRef.current.getPlacePredictions(
-        {
-          input,
-          types: ["geocode", "establishment"],
-        },
+        request,
         (results) => {
           setPredictions(results || []);
+          // Always show free-form option once search has returned
+          setShowFreeForm(true);
         }
       );
     },
-    []
+    [biasLocation]
   );
 
   const handleSelect = (prediction: google.maps.places.AutocompletePrediction) => {
@@ -75,6 +107,30 @@ export function AddressInput({
         }
       }
     );
+  };
+
+  const handleFreeFormConfirm = () => {
+    if (!query.trim()) return;
+    // Geocode the free-form text; fall back to biasLocation (city/state center)
+    const geocoder = new google.maps.Geocoder();
+    const searchQuery = locationBias
+      ? `${query.trim()}, ${locationBias.city}, ${locationBias.state}`
+      : query.trim();
+    geocoder.geocode({ address: searchQuery }, (results, status) => {
+      if (status === "OK" && results && results[0]?.geometry?.location) {
+        const loc: LatLng = {
+          lat: results[0].geometry.location.lat(),
+          lng: results[0].geometry.location.lng(),
+        };
+        onConfirm(query.trim(), loc);
+      } else if (biasLocation) {
+        // Fallback to city/state center
+        onConfirm(query.trim(), {
+          lat: biasLocation.lat(),
+          lng: biasLocation.lng(),
+        });
+      }
+    });
   };
 
   return (
@@ -117,6 +173,15 @@ export function AddressInput({
           </div>
         )}
       </div>
+
+      {showFreeForm && query.trim().length >= 3 && (
+        <button
+          onClick={handleFreeFormConfirm}
+          className="w-full mt-3 h-[48px] border border-[#1660F4] rounded-[8px] text-[14px] font-medium text-[#1660F4] active:bg-[#F1F5F9] transition-colors"
+        >
+          Continue with &ldquo;{query.trim()}&rdquo;
+        </button>
+      )}
 
       <div ref={dummyDivRef} className="hidden" />
     </div>

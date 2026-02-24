@@ -76,20 +76,19 @@ export const BOAT_STEPS = [
   { id: 1, title: "Location", description: "State and city" },
   { id: 2, title: "Embarkation point", description: "Where did you depart from?" },
   { id: 3, title: "What happened?", description: "What did your vessel collide with?" },
+  { id: 6, title: "Marina area", description: "Was this in a marina?" },
+  { id: 8, title: "Collision point", description: "Confirm the collision point" },
   { id: 4, title: "Before the collision", description: "How was your vessel moving?" },
   { id: 5, title: "Speed change", description: "Were you speeding up or slowing down?" },
-  { id: 6, title: "Marina area", description: "Was this in a marina?" },
   { id: 7, title: "Drawing tool", description: "How this works" },
-  { id: 8, title: "Collision point", description: "Confirm the collision point" },
   { id: 9, title: "Your path", description: "Draw your vessel's path" },
   { id: 10, title: "Other path", description: "Draw the other vessel's path" },
-  { id: 11, title: "Rest position", description: "Where did your vessel end up?" },
   { id: 12, title: "Summary", description: "Review your reconstruction" },
 ];
 
 export const BOAT_COLLISION_TYPE_OPTIONS = [
-  "T-Bone",
-  "Rear-End",
-  "Head-On",
-  "Sideswipe",
+  "Overtaken",
+  "Boat Crossing",
+  "Anchored/Moored Boat Struck",
+  "Docking/Undocking Collision",
 ];

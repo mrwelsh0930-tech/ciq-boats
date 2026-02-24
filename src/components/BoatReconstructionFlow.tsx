@@ -102,14 +102,16 @@ export function BoatReconstructionFlow() {
   const isSwimmer = state.collisionEntityType === "swimmer";
   const isStopped = state.yourBoat.movementType === "stopped";
 
-  // Auto-set rotation from path bearing when draw completes
+  // Auto-set rotation from approach bearing toward the impact point
   useEffect(() => {
-    if (drawComplete && !rotationInitializedRef.current && currentPath.length >= 2) {
-      const bearing = getPathEndBearing(currentPath);
+    if (drawComplete && !rotationInitializedRef.current && currentPath.length >= 2 && state.impactPoint) {
+      // Find the path segment approaching the impact point and use its bearing
+      const { pre } = splitPathAtImpact(currentPath, state.impactPoint);
+      const bearing = getPathEndBearing(pre.length >= 2 ? pre : currentPath);
       setBoatRotation(bearing ?? 0);
       rotationInitializedRef.current = true;
     }
-  }, [drawComplete, currentPath]);
+  }, [drawComplete, currentPath, state.impactPoint]);
 
   const entitySubType = !isBoat && !isSwimmer && state.otherEntity && "entitySubType" in state.otherEntity
     ? (state.otherEntity as OtherEntityData).entitySubType
@@ -123,7 +125,7 @@ export function BoatReconstructionFlow() {
     // Skip acceleration step if stopped
     if (isStopped && step.id === 5) return false;
     // Skip marina + drawing steps for swimmer (no map interaction needed)
-    if (isSwimmer && (step.id === 6 || step.id === 7 || step.id === 8 || step.id === 9 || step.id === 10 || step.id === 11)) return false;
+    if (isSwimmer && (step.id === 6 || step.id === 7 || step.id === 8 || step.id === 9 || step.id === 10)) return false;
     return true;
   });
 
@@ -152,8 +154,6 @@ export function BoatReconstructionFlow() {
       case 9:
       case 10:
         return "draw-path";
-      case 11:
-        return "place-rest";
       default:
         return "idle";
     }
@@ -248,7 +248,8 @@ export function BoatReconstructionFlow() {
 
     setState((prev) => ({
       ...prev,
-      currentStep: 4,
+      // Swimmer skips marina + map — go straight to speed
+      currentStep: type === "swimmer" ? 4 : 6,
       collisionEntityType: type,
       otherEntity,
     }));
@@ -260,13 +261,13 @@ export function BoatReconstructionFlow() {
     speedEstimate: number | null;
     speedUnit: "mph" | "knots";
   }) => {
-    // Swimmer skips all map steps — jump straight to summary
-    // Stopped skips acceleration — jump to marina (or summary for swimmer)
+    // Swimmer skips drawing — jump straight to summary
+    // Stopped skips acceleration — jump to drawing instruction
     let nextStep: number;
     if (isSwimmer) {
       nextStep = 12; // summary
     } else if (data.movementType === "stopped") {
-      nextStep = 6; // marina (acceleration is skipped for stopped)
+      nextStep = 7; // drawing instruction (acceleration is skipped for stopped)
     } else {
       nextStep = 5; // acceleration
     }
@@ -283,7 +284,7 @@ export function BoatReconstructionFlow() {
     }));
   };
 
-  // Step 5: Acceleration
+  // Step 5: Acceleration — now goes to drawing instruction (step 7)
   const handleAccelerationComplete = (trend: "accelerating" | "decelerating" | "constant" | "unknown") => {
     setState((prev) => ({
       ...prev,
@@ -291,17 +292,16 @@ export function BoatReconstructionFlow() {
         ...prev.yourBoat,
         speedTrend: trend,
       },
-      // Swimmer skips all map steps
-      currentStep: prev.collisionEntityType === "swimmer" ? 12 : 6,
+      currentStep: prev.collisionEntityType === "swimmer" ? 12 : 7,
     }));
   };
 
-  // Step 6: Marina area
+  // Step 6: Marina area — now goes to collision pin (step 8)
   const handleMarinaArea = (isMarina: boolean) => {
     setState((prev) => ({
       ...prev,
       isMarina,
-      currentStep: 7,
+      currentStep: 8,
     }));
   };
 
@@ -309,11 +309,6 @@ export function BoatReconstructionFlow() {
     (latlng: LatLng) => {
       if (state.currentStep === 8) {
         setState((prev) => ({ ...prev, impactPoint: latlng }));
-      } else if (state.currentStep === 11) {
-        setState((prev) => ({
-          ...prev,
-          yourBoat: { ...prev.yourBoat, restPosition: latlng },
-        }));
       }
     },
     [state.currentStep]
@@ -416,17 +411,6 @@ export function BoatReconstructionFlow() {
       updatedState.currentStep = nextActiveStep.id;
     }
 
-    // Auto-populate rest position from path endpoint
-    if (nextActiveStep && nextActiveStep.id === 11) {
-      const postPath = updatedState.yourBoat.postImpactPath;
-      if (postPath.length > 0) {
-        updatedState.yourBoat = {
-          ...updatedState.yourBoat,
-          restPosition: postPath[postPath.length - 1],
-        };
-      }
-    }
-
     setState(updatedState);
     setCurrentPath([]);
     setDrawComplete(false);
@@ -449,8 +433,6 @@ export function BoatReconstructionFlow() {
       case 9:
       case 10:
         return currentPath.length >= MIN_PATH_POINTS;
-      case 11:
-        return state.yourBoat.restPosition !== null;
       default:
         return false;
     }
@@ -484,10 +466,6 @@ export function BoatReconstructionFlow() {
         return drawComplete
           ? "Does this look like the path taken by the other vessel?"
           : "Draw the path the other vessel traveled \u2014 just your best recollection.";
-      case 11:
-        return state.yourBoat.restPosition
-          ? "We placed your vessel where your path ended. Tap to adjust."
-          : "Tap where your vessel came to rest.";
       default:
         return "";
     }
@@ -507,10 +485,6 @@ export function BoatReconstructionFlow() {
         return drawComplete
           ? "Drag the blue handle to rotate the other vessel\u2019s orientation."
           : "Make sure the path touches the collision point.";
-      case 11:
-        return state.yourBoat.restPosition
-          ? "If your vessel came to rest somewhere else, tap that spot instead."
-          : null;
       default:
         return null;
     }
@@ -609,8 +583,9 @@ export function BoatReconstructionFlow() {
               onConfirm={handleEmbarkationConfirm}
               title="Where did you embark from?"
               subtitle="Enter the address or name of the marina, dock, pier, port, or nearby landmark where you embarked."
-              helpText="You can search by marina name, dock name, pier, port, boat ramp, or any nearby landmark."
+              helpText="You can search by marina name, dock name, pier, port, or any nearby landmark."
               placeholder="e.g. Marina Bay, Pier 39, or 123 Harbor Rd"
+              locationBias={state.stateProvince && state.city ? { state: state.stateProvince, city: state.city } : null}
             />
           </Card>
         </div>
@@ -758,12 +733,7 @@ export function BoatReconstructionFlow() {
       ? (state.otherEntity as OtherEntityData).position
       : null;
 
-  const restPositions = [
-    state.yourBoat.restPosition,
-    isBoat && "restPosition" in state.otherEntity
-      ? (state.otherEntity as BoatData).restPosition
-      : null,
-  ];
+  const restPositions: (LatLng | null)[] = [];
 
   const isDrawStep = state.currentStep === 9 || state.currentStep === 10;
   const showConfirmation = isDrawStep && drawComplete && currentPath.length >= MIN_PATH_POINTS;
@@ -833,9 +803,9 @@ export function BoatReconstructionFlow() {
               useSatellite={state.isMarina === true}
               entitySticker={entitySticker}
               rotationOverlay={
-                showConfirmation && currentPath.length >= 2
+                showConfirmation && currentPath.length >= 2 && state.impactPoint
                   ? {
-                      position: currentPath[currentPath.length - 1],
+                      position: state.impactPoint,
                       rotation: boatRotation,
                       onRotate: setBoatRotation,
                     }
