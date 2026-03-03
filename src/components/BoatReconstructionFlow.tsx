@@ -121,6 +121,19 @@ export function BoatReconstructionFlow() {
     }
   }, [drawComplete, currentPath, state.impactPoint]);
 
+  // Auto-place impact pin and zoom out when entering step 8 from GPS
+  useEffect(() => {
+    if (
+      state.currentStep === 8 &&
+      !state.impactPoint &&
+      state.embarkationLocation &&
+      state.embarkationAddress?.startsWith("GPS:")
+    ) {
+      setState((prev) => ({ ...prev, impactPoint: prev.embarkationLocation }));
+      mapZoomRef.current = 13;
+    }
+  }, [state.currentStep]);
+
   const entitySubType = !isBoat && !isSwimmer && state.otherEntity && "entitySubType" in state.otherEntity
     ? (state.otherEntity as OtherEntityData).entitySubType
     : null;
