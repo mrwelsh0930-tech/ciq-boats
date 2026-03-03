@@ -24,7 +24,7 @@ import { StepIndicator } from "./StepIndicator";
 import { AssuredHeader } from "./AssuredHeader";
 import { WaterBodySelector } from "./WaterBodySelector";
 import { StateCityInput } from "./StateCityInput";
-import { AddressInput } from "./AddressInput";
+import { EmbarkationInput } from "./EmbarkationInput";
 import { BoatCollisionTypeSelector } from "./BoatCollisionTypeSelector";
 import { SpeedInput } from "./SpeedInput";
 import { AccelerationInput } from "./AccelerationInput";
@@ -617,18 +617,14 @@ export function BoatReconstructionFlow() {
     );
   }
 
-  // ─── Step 2: Embarkation point ───
+  // ─── Step 2: Embarkation point (address or GPS) ───
   if (state.currentStep === 2) {
     return (
       <PageShell>
         <div className="flex-1 flex flex-col items-center justify-center py-6 overflow-y-auto">
           <Card className="py-8 px-8 flex flex-col gap-8 items-center">
-            <AddressInput
+            <EmbarkationInput
               onConfirm={handleEmbarkationConfirm}
-              title="Where did you embark from?"
-              subtitle="Enter the address or name of the marina, dock, pier, port, or nearby landmark where you embarked."
-              helpText="You can search by marina name, dock name, pier, port, or any nearby landmark."
-              placeholder="e.g. Marina Bay, Pier 39, or 123 Harbor Rd"
               locationBias={state.stateProvince && state.city ? { state: state.stateProvince, city: state.city } : null}
             />
           </Card>
